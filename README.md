@@ -48,7 +48,7 @@ Please refer to [docs](/docs) directory.
 Collection can be installed from Ansible galaxy:
 
 ```shell
-ansible-galaxy collection install vkhitrin.libguestfs
+ansible-galaxy collection install mcfitz2.libguestfs
 ```
 
 ### Locally
@@ -62,7 +62,46 @@ ansible-galaxy collection build
 Install collection:
 
 ```shell
-ansible-galaxy collection install --force vkhitrin-libguestfs-<VERSION>.tar.gz
+ansible-galaxy collection install --force mcfitz2-libguestfs-<VERSION>.tar.gz
+```
+
+## Development
+
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to ensure code quality and consistency. To use the pre-commit hooks:
+
+1. Install the required dependencies:
+
+```shell
+pipenv install ansible-lint pylint yamllint pre-commit
+```
+
+2. Set up the pre-commit hooks:
+
+```shell
+pipenv run pre-commit install
+```
+
+The pre-commit hooks will automatically run on every commit and check for:
+
+- Python linting issues using pylint
+- YAML syntax validation with yamllint
+- Ansible best practices with ansible-lint
+- Duplicate entries in argument_spec definitions
+- Debugging print statements
+- Proper Ansible module documentation
+
+If you need to bypass the hooks for a specific commit:
+
+```shell
+git commit --no-verify
+```
+
+You can also run all the hooks manually on all files:
+
+```shell
+pipenv run pre-commit run --all-files
 ```
 
 ## License

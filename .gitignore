@@ -1,2 +1,6 @@
 # Ignore archives
 *.tar.gz
+.ansible/.lock
+Pipfile.lock
+Pipfile
+.ansible

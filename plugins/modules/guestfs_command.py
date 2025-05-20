@@ -5,6 +5,11 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
+from ansible.module_utils.basic import AnsibleModule
+from ..module_utils.libguestfs import guest
+
+import re
+
 __metaclass__ = type
 
 DOCUMENTATION = """
@@ -84,67 +89,62 @@ stdout_lines:
   ]
 """
 
-from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.libguestfs import guest
-
-import re
-
 
 def execute(guest, module):
-
     results = {
-        'changed': False,
-        'failed': False,
+        "changed": False,
+        "failed": False,
     }
     err = False
 
     # Create a command variable
-    if module.params['shell']:
-        cmd = module.params['shell']
-    elif module.params['command']:
-        cmd = module.params['command']
+    if module.params["shell"]:
+        cmd = module.params["shell"]
+    elif module.params["command"]:
+        cmd = module.params["command"]
 
     try:
-        if module.params['shell']:
+        if module.params["shell"]:
             result = guest.sh(cmd)
-        elif module.params['command']:
+        elif module.params["command"]:
             # Split sentence into words using regular expressions
-            cmd_args = re.findall(r'([^\s]+)', cmd)
+            cmd_args = re.findall(r"([^\s]+)", cmd)
             result = guest.command(cmd_args)
     except Exception as e:
         err = True
-        results['failed'] = True
+        results["failed"] = True
         error_message = str(e)
-        if error_message in ['command: ', 'sh: ']:
-            error_message = 'command has returned stderr to shell but guestfs does not return it'
-        results['msg'] = error_message
+        if error_message in ["command: ", "sh: "]:
+            error_message = (
+                "command has returned stderr to shell but guestfs does not return it"
+            )
+        results["msg"] = error_message
 
     if not err:
-        results['changed'] = True
-        results['stdout'] = result.rstrip('\n')
-        results['stdout_lines'] = results['stdout'].split('\n')
+        results["changed"] = True
+        results["stdout"] = result.rstrip("\n")
+        results["stdout_lines"] = results["stdout"].split("\n")
 
     return results, err
 
 
 def main():
-
-    mutual_exclusive_args = [['command', 'shell']]
-    required_one_of_args = [['command', 'shell']]
+    mutual_exclusive_args = [["command", "shell"]]
+    required_one_of_args = [["command", "shell"]]
     module = AnsibleModule(
         argument_spec=dict(
-            image=dict(required=True, type='str'),
-            automount=dict(required=False, type='bool', default=True),
-            mounts=dict(required=False,  type='list', elements='dict'),
-            network=dict(required=False, type='bool', default=True),
-            selinux_relabel=dict(required=False, type='bool', default=False),
-            command=dict(required=False, type='str'),
-            shell=dict(required=False, type='str'),
-            debug=dict(required=False, type='bool', default=False),
+            image=dict(required=True, type="str"),
+            automount=dict(required=False, type="bool", default=True),
+            mounts=dict(required=False, type="list", elements="dict"),
+            network=dict(required=False, type="bool", default=True),
+            selinux_relabel=dict(required=False, type="bool", default=False),
+            command=dict(required=False, type="str"),
+            shell=dict(required=False, type="str"),
+            debug=dict(required=False, type="bool", default=False),
         ),
         mutually_exclusive=mutual_exclusive_args,
         required_one_of=required_one_of_args,
-        supports_check_mode=False
+        supports_check_mode=False,
     )
 
     g = guest(module)
@@ -157,5 +157,5 @@ def main():
     module.exit_json(**results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

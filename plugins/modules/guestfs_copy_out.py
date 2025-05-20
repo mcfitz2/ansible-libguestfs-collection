@@ -5,6 +5,11 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 
 from __future__ import absolute_import, division, print_function
+from ansible.module_utils.basic import AnsibleModule
+from ..module_utils.libguestfs import guest
+
+import os
+
 __metaclass__ = type
 
 DOCUMENTATION = """
@@ -99,32 +104,28 @@ md5:
   "example": "d6fe77f000341b5f9a952e744f34901a"
 """
 
-from ansible.module_utils.basic import AnsibleModule
-from ..module_utils.libguestfs import guest
-
-import os
-
 
 def download(guest, module):
-
     err = False
     results = {
-        'changed': False,
-        'failed': False,
-        'src': module.params['src'],
+        "changed": False,
+        "failed": False,
+        "src": module.params["src"],
     }
     md5sum_src = None
     md5sum_dest = None
-    src = module.params['src']
-    dest = module.params['dest']
+    src = module.params["src"]
+    dest = module.params["dest"]
 
     try:
         # Check if source path is a file and not a directory/symlink
-        if not guest.is_file(src) and not module.params['recursive']:
+        if not guest.is_file(src) and not module.params["recursive"]:
             err = True
-            results['msg'] = "Source file is either directory or symlink, if it's a directory use 'recursive' argument"
+            results["msg"] = (
+                "Source file is either directory or symlink, if it's a directory use 'recursive' argument"
+            )
         else:
-            if module.params['recursive']:
+            if module.params["recursive"]:
                 if not src.endswith(os.path.sep):
                     dest = dest + os.path.basename(src)
                 guest.copy_out(src, dest)
@@ -137,35 +138,34 @@ def download(guest, module):
                     md5sum_dest = module.md5(dest)
                 # If md5sum of source file and dest file are different, download file from guest
                 if md5sum_src != md5sum_dest:
-                    results['changed'] = True
+                    results["changed"] = True
                     guest.download(src, dest)
 
     except Exception as e:
         err = True
-        results['failed'] = True
-        results['msg'] = str(e)
+        results["failed"] = True
+        results["msg"] = str(e)
 
     if not err:
-        results['md5sum'] = md5sum_src
-        results['dest'] = dest
+        results["md5sum"] = md5sum_src
+        results["dest"] = dest
 
     return results, err
 
 
 def main():
-
     module = AnsibleModule(
         argument_spec=dict(
-            image=dict(required=True, type='str'),
-            src=dict(required=True, type='path'),
-            dest=dict(required=True, type='path'),
-            recursive=dict(required=False, type='bool', default=False),
-            automount=dict(required=False, type='bool', default=True),
-            mounts=dict(required=False,  type='list', elements='dict'),
-            network=dict(required=False, type='bool', default=True),
-            selinux_relabel=dict(required=False, type='bool', default=False),
+            image=dict(required=True, type="str"),
+            src=dict(required=True, type="path"),
+            dest=dict(required=True, type="path"),
+            recursive=dict(required=False, type="bool", default=False),
+            automount=dict(required=False, type="bool", default=True),
+            mounts=dict(required=False, type="list", elements="dict"),
+            network=dict(required=False, type="bool", default=True),
+            selinux_relabel=dict(required=False, type="bool", default=False),
         ),
-        supports_check_mode=False
+        supports_check_mode=False,
     )
 
     g = guest(module)
@@ -178,5 +178,5 @@ def main():
     module.exit_json(**results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

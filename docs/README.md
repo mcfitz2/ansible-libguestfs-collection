@@ -14,8 +14,8 @@ Full documentation(ansible-doc) is present inside the module.
 
 ## Sample Plays
 
-Make sure everything is installed (mentioned in [README Prerequisites](/README.md#Prerequisites)) on the Ansible controller host.  
-All plays by default will run on `localhost` unless overridden by `hosts_pattern` variable.  
+Make sure everything is installed (mentioned in [README Prerequisites](/README.md#Prerequisites)) on the Ansible controller host.
+All plays by default will run on `localhost` unless overridden by `hosts_pattern` variable.
 
 ### Execute command
 
