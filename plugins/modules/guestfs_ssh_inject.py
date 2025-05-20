@@ -31,8 +31,20 @@ options:
     description: Action to be performed
     choices:
     - present
-    - absent
-
+  automount:
+    required: False
+    description: Whether to perform auto mount of mountpoints inside guest disk image
+    default: True
+  mounts:
+    required: False
+    description: "List of mounts that will be attempted. Each element is a dictionary {'/path/to/device': '/path/to/mountpoint'}"
+  selinux_relabel:
+    required: False
+    description: Whether to perform SELinux context relabeling
+  network:
+    required: False
+    description: Whether to enable network for appliance
+    default: True
 requirements:
   - "libguestfs"
   - "libguestfs-devel"
@@ -189,6 +201,10 @@ def main():
             key_file=dict(required=False, type='str'),
             state=dict(required=True, choices=['present', 'absent']),
             debug=dict(required=False, type='bool', default=False),
+            automount=dict(required=False, type='bool', default=True),
+            mounts=dict(required=False, type='list', elements='dict'),
+            network=dict(required=False, type='bool', default=True),
+            selinux_relabel=dict(required=False, type='bool', default=False),
             force=dict(required=False, type='bool', default=False)
         ),
         required_one_of=[['ssh_key', 'key_file']],

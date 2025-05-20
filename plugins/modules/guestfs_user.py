@@ -23,6 +23,15 @@ options:
   password:
     required: False
     description: User's password
+  groups:
+    required: False
+    description: List of groups the user will be added to
+    type: list
+    elements: str
+  shell:
+    required: False
+    description: Path to the user's login shell
+    type: str
   state:
     required: True
     description: Action to be performed
@@ -55,22 +64,41 @@ EXAMPLES = """
 - name: Creates a user
   guestfs_user:
     image: /tmp/rhel7-5.qcow2
-    user: test_user
+    name: test_user
     password: test_password
     state: present
 
 - name: Change password to an existing user
   guestfs_user:
     image: /tmp/rhel7-5.qcow2
-    user: root
+    name: root
     password: root_password
+    state: present
+
+- name: Create a user with specific groups and shell
+  guestfs_user:
+    image: /tmp/rhel7-5.qcow2
+    name: deploy_user
+    password: secure_password
+    groups:
+      - wheel
+      - developers
+    shell: /bin/bash
+    state: present
+
+- name: Modify an existing user's groups and shell
+  guestfs_user:
+    image: /tmp/rhel7-5.qcow2
+    name: existing_user
+    groups:
+      - admin
+    shell: /bin/zsh
     state: present
 
 - name: Delete a user
   guestfs_user:
     image: /tmp/rhel7-5.qcow2
-    user: root
-    password: root_password
+    name: test_user
     state: absent
 """
 
@@ -86,7 +114,9 @@ results:
   when: success
   description: Contains the module successful execution results
   example: [
-      "test_user is present"
+      "test_user is present",
+      "Added test_user to groups: wheel, developers",
+      "Changed shell to /bin/bash for test_user"
   ]
 """
 
@@ -99,6 +129,8 @@ def users(guest, module):
     state = module.params['state']
     user_name = module.params['name']
     user_password = module.params['password']
+    user_groups = module.params.get('groups', [])
+    user_shell = module.params.get('shell')
     results = {
         'changed': False,
         'failed': False,
@@ -114,64 +146,129 @@ def users(guest, module):
 
     if state == 'present':
         if user_exists:
-            try:
-                guest.sh_lines('echo {u}:{p} | chpasswd'.format(u=user_name,
-                                                                p=user_password))
-            except Exception as e:
-                err = True
-                results['failed'] = True
-                results['msg'] = str(e)
-
+            # Update existing user
+            changed = False
+            
+            # Update password if provided
+            if user_password:
+                try:
+                    guest.sh_lines('echo {u}:{p} | chpasswd'.format(u=user_name,
+                                                                    p=user_password))
+                    changed = True
+                    results['results'].append('Updated password for {}'.format(user_name))
+                except Exception as e:
+                    err = True
+                    results['failed'] = True
+                    results['msg'] = "Failed to update password: {}".format(str(e))
+                    return results, err
+            
+            # Update shell if provided
+            if user_shell:
+                try:
+                    guest.sh_lines('usermod -s {} {}'.format(user_shell, user_name))
+                    changed = True
+                    results['results'].append('Changed shell to {} for {}'.format(user_shell, user_name))
+                except Exception as e:
+                    err = True
+                    results['failed'] = True
+                    results['msg'] = "Failed to update shell: {}".format(str(e))
+                    return results, err
+            
+            # Update groups if provided
+            if user_groups:
+                try:
+                    groups_str = ','.join(user_groups)
+                    guest.sh_lines('usermod -G {} {}'.format(groups_str, user_name))
+                    changed = True
+                    results['results'].append('Added {} to groups: {}'.format(user_name, groups_str))
+                except Exception as e:
+                    err = True
+                    results['failed'] = True
+                    results['msg'] = "Failed to update groups: {}".format(str(e))
+                    return results, err
+            
+            if not changed:
+                results['results'].append('{} already exists with the specified configuration'.format(user_name))
+            else:
+                results['changed'] = True
+                
         else:
+            # Create new user
             try:
-                guest.sh_lines('useradd {user}'.format(user=user_name))
-                guest.sh_lines('{u}:{p} | chpasswd'.format(u=user_name,
-                                                           p=user_password))
+                cmd = ['useradd']
+                
+                # Add shell if specified
+                if user_shell:
+                    cmd.append('-s {}'.format(user_shell))
+                
+                # Add groups if specified
+                if user_groups:
+                    groups_str = ','.join(user_groups)
+                    cmd.append('-G {}'.format(groups_str))
+                
+                # Add username and execute
+                cmd.append(user_name)
+                guest.sh_lines(' '.join(cmd))
+                
+                # Set password
+                guest.sh_lines('echo {u}:{p} | chpasswd'.format(u=user_name, p=user_password))
+                
+                results['changed'] = True
+                results['results'].append('{} has been created'.format(user_name))
+                
+                # Add information about groups and shell if they were set
+                if user_groups:
+                    results['results'].append('Added {} to groups: {}'.format(user_name, ','.join(user_groups)))
+                if user_shell:
+                    results['results'].append('Set shell to {} for {}'.format(user_shell, user_name))
+                
             except Exception as e:
                 err = True
                 results['failed'] = True
-                results['msg'] = str(e)
+                results['msg'] = "Failed to create user: {}".format(str(e))
 
     elif state == 'absent':
         if user_exists:
             try:
-                guest.sh_lines('userdel {user}'.format(user=user_name))
+                guest.sh_lines('userdel {}'.format(user_name))
+                results['changed'] = True
+                results['results'].append('{} has been removed'.format(user_name))
             except Exception as e:
                 err = True
                 results['failed'] = True
-                results['msg'] = str(e)
-
-    if not err:
-        results['changed'] = True
-        results['results'].append('{u} is {s}'.format(u=user_name, s=state))
+                results['msg'] = "Failed to remove user: {}".format(str(e))
+        else:
+            results['results'].append('{} does not exist'.format(user_name))
 
     return results, err
 
 
 def main():
 
-    required_togheter_args = [['name', 'state']]
+    required_together_args = [['name', 'state']]
     module = AnsibleModule(
         argument_spec=dict(
             image=dict(required=True, type='str'),
             automount=dict(required=False, type='bool', default=True),
-            mounts=dict(required=False,  type='list', elements='dict'),
+            mounts=dict(required=False, type='list', elements='dict'),
             network=dict(required=False, type='bool', default=True),
             selinux_relabel=dict(required=False, type='bool', default=False),
             name=dict(required=True, type='str'),
             password=dict(type='str', no_log=True),
+            groups=dict(type='list', elements='str', required=False),
+            shell=dict(type='str', required=False),
             state=dict(required=True, choices=['present', 'absent']),
             debug=dict(required=False, type='bool', default=False),
             force=dict(required=False, type='bool', default=False)
         ),
-        required_together=required_togheter_args,
+        required_together=required_together_args,
         supports_check_mode=False
     )
 
-    if not module.params['password'] and module.params['state'] == 'present':
+    if not module.params['password'] and module.params['state'] == 'present' and not module.params.get('groups') and not module.params.get('shell'):
         err = True
         results = {
-            'msg': 'Please provide password when using present state'
+            'msg': 'When state is present, at least one of password, groups, or shell must be provided'
         }
         module.fail_json(**results)
 
